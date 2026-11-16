@@ -1,6 +1,6 @@
 {
-  "name": "Split-Flap Display Card",
+  "name": "Transit Split-Flap Card",
   "content_in_root": true,
-  "filename": "splitflap-card.js",
+  "filename": "transit-splitflap-card.js",
   "render_readme": true
 }
