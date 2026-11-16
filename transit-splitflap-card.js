@@ -1,12 +1,12 @@
 /**
- * Split-Flap Card for Home Assistant
+ * Transit Split-Flap Card for Home Assistant
  * A split-flap display card inspired by FlipOff (github.com/magnum6actual/flipoff)
  *
  * Installation:
- *   1. Copy this file to /config/www/splitflap-card.js
+ *   1. Copy this file to /config/www/transit-splitflap-card.js
  *   2. Add as a resource in HA:
  *        Settings → Dashboards → ⋮ → Resources → Add
- *        URL: /local/splitflap-card.js   Type: JavaScript Module
+ *        URL: /local/transit-splitflap-card.js   Type: JavaScript Module
  *   3. Create an input_text helper:
  *        Settings → Devices & Services → Helpers → Create → Text
  *        Name: "Splitflap Message"  (entity: input_text.splitflap_message)
@@ -14,11 +14,11 @@
  *   4. Add the card to a dashboard (use YAML or visual editor)
  *
  * Minimal YAML:
- *   type: custom:splitflap-card
+ *   type: custom:transit-splitflap-card
  *   entity: input_text.splitflap_message
  *
  * Full YAML options:
- *   type: custom:splitflap-card
+ *   type: custom:transit-splitflap-card
  *   entity: input_text.splitflap_message
  *   title: ""                   # optional heading above the board
  *   rows: 6                     # default 6
@@ -45,11 +45,14 @@
  *     - "#bd10e0"
  *   word_wrap: true             # wrap words across rows (vs truncate)
  *   line_separator: "|"         # character to force a new line in message
+  header_rows: [0]             # zero-based board row indexes rendered in header_color
+  header_color: "#f5c542"      # header text color
+  board_height: "72vh"         # set to "auto" for the natural board ratio
  */
 
 const VALID_CHARS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&()-+=[]:;\x27",.<>?/\u00b0';
-const DEFAULT_SCRAMBLE_COLORS = ['#e8572a', '#f5a623', '#4a90d9', '#7ed321', '#bd10e0'];
-const DEFAULT_ACCENT = '#e8572a';
+const DEFAULT_SCRAMBLE_COLORS = ['#2c2c2c'];
+const DEFAULT_ACCENT = '#f5c542';
 
 const FONT_WEIGHT_MAP = {
   'light': 300,
@@ -95,7 +98,7 @@ class SplitflapCard extends HTMLElement {
   /* ── HA plumbing ─────────────────────────────────── */
 
   static getConfigElement() {
-    return document.createElement('splitflap-card-editor');
+    return document.createElement('transit-splitflap-card-editor');
   }
 
   static getStubConfig() {
@@ -109,7 +112,7 @@ class SplitflapCard extends HTMLElement {
       scramble_duration: 600,
       stagger_delay: 25,
       color_mode: 'default',
-      bar_style: 'rainbow',
+      bar_style: 'off',
       background_color: '#1a1a1a',
       sound: false,
       sound_type: 'mechanical',
@@ -118,6 +121,9 @@ class SplitflapCard extends HTMLElement {
       word_wrap: true,
       line_separator: '|',
       accent_color: DEFAULT_ACCENT,
+      header_color: DEFAULT_ACCENT,
+      header_rows: [0],
+      board_height: 'auto',
     };
   }
 
@@ -134,7 +140,7 @@ class SplitflapCard extends HTMLElement {
       scramble_duration: 600,
       stagger_delay: 25,
       color_mode: 'default',
-      bar_style: 'rainbow',
+      bar_style: 'off',
       background_color: '#1a1a1a',
       sound: false,
       sound_type: 'mechanical',
@@ -143,6 +149,9 @@ class SplitflapCard extends HTMLElement {
       word_wrap: true,
       line_separator: '|',
       accent_color: DEFAULT_ACCENT,
+      header_color: DEFAULT_ACCENT,
+      header_rows: [0],
+      board_height: 'auto',
       scramble_colors: DEFAULT_SCRAMBLE_COLORS,
       font_size: 'auto',
       title: '',
@@ -157,7 +166,7 @@ class SplitflapCard extends HTMLElement {
     if (!this._rendered) this._render();
 
     // Pass hass to editor if it exists
-    const editor = this.shadowRoot.querySelector('splitflap-card-editor');
+    const editor = this.shadowRoot.querySelector('transit-splitflap-card-editor');
     if (editor) editor.hass = hass;
 
     const entityId = this._config.entity;
@@ -210,6 +219,8 @@ class SplitflapCard extends HTMLElement {
     const fontFamily = c.font_family || 'Courier New';
     const fontWeightNum = FONT_WEIGHT_MAP[c.font_weight] || FONT_WEIGHT_MAP['bold'];
     const barStyle = c.bar_style || 'rainbow';
+    const boardHeight = c.board_height || 'auto';
+    const headerRows = Array.isArray(c.header_rows) ? c.header_rows : []; 
 
     // Bar CSS
     let barTopCSS = '', barBottomCSS = '';
@@ -227,6 +238,7 @@ class SplitflapCard extends HTMLElement {
         :host {
           display: block;
           --accent: ${accent};
+          --header-color: ${c.header_color || DEFAULT_ACCENT};
           --rows: ${rows};
           --cols: ${cols};
         }
@@ -256,7 +268,7 @@ class SplitflapCard extends HTMLElement {
           grid-template-rows: repeat(var(--rows), 1fr);
           gap: 3px;
           padding: 6px 10px;
-          aspect-ratio: calc(var(--cols) * 1.0) / calc(var(--rows) * 1.45);
+          ${boardHeight === 'auto' ? 'aspect-ratio: calc(var(--cols) * 1.0) / calc(var(--rows) * 1.45);' : `height: ${boardHeight};`}
         }
         .tile {
           position: relative;
@@ -265,7 +277,7 @@ class SplitflapCard extends HTMLElement {
           display: flex;
           align-items: center;
           justify-content: center;
-          aspect-ratio: 1 / 1.45;
+          ${boardHeight === 'auto' ? 'aspect-ratio: 1 / 1.45;' : 'min-height: 0;'}
           overflow: hidden;
           transition: background-color 0.08s;
         }
@@ -288,6 +300,7 @@ class SplitflapCard extends HTMLElement {
           text-align: center;
           font-size: ${c.font_size === 'auto' ? 'min(3.2cqi, 2.8vh)' : c.font_size};
         }
+        .tile.header-row .tile-char { color: var(--header-color); }
         @keyframes scrambleIn {
           0%   { transform: rotateX(90deg); opacity: 0; }
           40%  { transform: rotateX(-10deg); opacity: 1; }
@@ -321,6 +334,7 @@ class SplitflapCard extends HTMLElement {
       for (let c2 = 0; c2 < cols; c2++) {
         const tile = document.createElement('div');
         tile.className = 'tile';
+        if (headerRows.includes(r)) tile.classList.add('header-row');
         const charEl = document.createElement('span');
         charEl.className = 'tile-char';
         charEl.textContent = ' ';
@@ -860,14 +874,14 @@ class SplitflapCardEditor extends HTMLElement {
 
 /* ── Register ──────────────────────────────────────── */
 
-customElements.define('splitflap-card', SplitflapCard);
-customElements.define('splitflap-card-editor', SplitflapCardEditor);
+customElements.define('transit-splitflap-card', SplitflapCard);
+customElements.define('transit-splitflap-card-editor', SplitflapCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: 'splitflap-card',
-  name: 'Split-Flap Display',
-  description: 'Split-flap display card with flip animations',
+  type: 'transit-splitflap-card',
+  name: 'Transit Split-Flap Display',
+  description: 'Monochrome transit split-flap display with configurable headers and kiosk sizing',
   preview: true,
-  documentationURL: 'https://github.com/RazManSource/splitflap-card',
+  documentationURL: 'https://github.com/sruthidevan/ha-transit-splitflap-card',
 });
